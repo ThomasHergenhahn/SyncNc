@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from tkinter import *
 import socket
@@ -34,8 +34,15 @@ def MainSync():
     global nc_dieser_pc
     global nc_entfernter_pc
 
-    #commands = ['mkdir ' + home_entfernter_pc, 'whoami']
-    pref = "/"
+    try:
+        commands = ['sudo -s', password,\
+                    'rm -R ' + home_entfernter_pc, \
+                    'whoami']
+        SendCmds(commands)
+    except:
+        print('############################ Kein Verbindungsaufbau ###############################')
+        return
+    
     dirs = home_entfernter_pc.split("/")
     cdDir = ""
     for dir in dirs:
@@ -46,7 +53,7 @@ def MainSync():
             #print (commands)
             #print('#################################################')
 
-    commands = ['sudo -s', password, 'chown thh:thh ' + home_entfernter_pc, 'whoami']
+    commands = ['chown thh:thh ' + home_entfernter_pc]
     SendCmds(commands)
     write_server_cmd()
     SendCmdFile()
@@ -63,25 +70,28 @@ def MainSync():
         vor_nc_entfernter_pc = vor_nc_entfernter_pc + olddir
         olddir=dir + '/'
 
-    commands = ['sudo -s', '__adid__', 'chmod +x /home/thh/server_cmd.sh', 'sh /home/thh/server_cmd.sh',\
-                'chown thh:thh /var/www/nextcloud-dirbkp.tar.gz', 'rm -R /home/thh/nc', 'mkdir /home/thh/nc',\
-                'cp /var/www/nextcloud-dirbkp.tar.gz /home/thh/nc',\
-                'chown thh:thh /home/thh/nc/nextcloud-dirbkp.tar.gz',\
-                'cp /var/www/nextcloud-sqlbkp.bak /home/thh/nc',\
-                'chown thh:thh /home/thh/nc/nextcloud-sqlbkp.bak',\
+    commands = ['sudo -s', '__adid__',\
+                'chmod +x '+ home_entfernter_pc +'/server_cmd.sh',\
+                'sh '+ home_entfernter_pc +'/server_cmd.sh',\
+                'chown thh:thh /var/www/nextcloud-dirbkp.tar.gz',\
+                'cp /var/www/nextcloud-dirbkp.tar.gz ' + home_entfernter_pc,\
+                'chown thh:thh '+ home_entfernter_pc +'/nextcloud-dirbkp.tar.gz',\
+                'cp /var/www/nextcloud-sqlbkp.bak ' + home_entfernter_pc,\
+                'chown thh:thh '+ home_entfernter_pc +'/nextcloud-sqlbkp.bak',\
                 'whoami']
 
     commands = ['sudo -s', '__adid__', \
                 'chmod +x ' + home_entfernter_pc + '/server_cmd.sh', \
                 'chown thh:thh ' + home_entfernter_pc + '/server_cmd.sh', \
                 'sh ' + home_entfernter_pc + '/server_cmd.sh', \
-                'chown thh:thh ' + nc_entfernter_pc + '/nextcloud-dirbkp.tar.gz', \
-                #'rm -R ' + home_entfernter_pc, \
-                #'mkdir ' + home_entfernter_pc, \
-                'cp ' + nc_entfernter_pc + '/nextcloud-dirbkp.tar.gz ' + home_entfernter_pc, \
-                'chown thh:thh ' + home_entfernter_pc + '/nextcloud-dirbkp.tar.gz', \
-                'cp ' + nc_entfernter_pc + '/nextcloud-sqlbkp.bak ' + home_entfernter_pc, \
+                'cp ' + vor_nc_entfernter_pc + '/nextcloud-sqlbkp.bak ' + home_entfernter_pc, \
                 'chown thh:thh ' + home_entfernter_pc + '/nextcloud-sqlbkp.bak', \
+                'cp ' + vor_nc_entfernter_pc + '/nextcloud-dirbkp.tar.gz ' + home_entfernter_pc, \
+                'chown thh:thh ' + home_entfernter_pc + '/nextcloud-dirbkp.tar.gz', \
+                'cd data_dir_entfernter_pc', \
+                'cd ..',\
+                'cp ncdata.tar.gz ' + home_entfernter_pc, \
+                'chown thh:thh ' + home_entfernter_pc + '/ncdata.tar.gz', \
                 'whoami']
     #commands = ['sudo -s', '__adid__', 'whoami']
 
@@ -127,24 +137,59 @@ def SendCmds(commands):
 
 def GetResultFiles():
     global hostname
-    global password
     global username
+    global password
+    global home_dieser_pc
+    global home_entfernter_pc
+    global data_dir_dieser_pc
+    global data_dir_entfernter_pc
+    global nc_dieser_pc
+    global nc_entfernter_pc
 
-    dest = "/home/thh/nc"
+    print('host ', hostname)
+    print('user ', username)
+    print('pw ', password)
+
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.WarningPolicy)
+    # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname, username=username, password=password)
+
+    sftp = ssh.open_sftp()
+    print('#################### HOLEN #########################')
     try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.WarningPolicy)
-        # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname, username=username, password=password)
+        getcmd = home_entfernter_pc + '/nextcloud-sqlbkp.bak', home_dieser_pc + '/nextcloud-sqlbkp.bak'
+        print(getcmd)
+        sftp.get(home_entfernter_pc + '/nextcloud-sqlbkp.bak', home_dieser_pc + '/nextcloud-sqlbkp.bak')
+    except:
+        print("nextcloud-sqlbkp.bak nicht vorhanden")
+    try:
+        getcmd = home_entfernter_pc + '/nextcloud-dirbkp.tar.gz', home_dieser_pc + '/nextcloud-dirbkp.tar.gz'
+        print(getcmd)
+        sftp.get(home_entfernter_pc + '/nextcloud-dirbkp.tar.gz', home_dieser_pc + '/nextcloud-dirbkp.tar.gz')
+    except:
+        print("nextcloud-dirbkp.tar.gz nicht vorhanden")
+    try:
+        sftp.get("/var/ncdata.tar.gz", home_dieser_pc + "/ncdata.tar.gz")
+    except:
+        print("ncdata.tar.gz nicht vorhanden")
 
-        sftp = ssh.open_sftp()
-        sftp.get("/var/ncdata.tar.gz", dest + "/ncdata.tar.gz")
-        sftp.get("/home/thh/nc/nextcloud-dirbkp.tar.gz", dest + "/nextcloud-dirbkp.tar.gz")
-        sftp.get("/home/thh/nc/nextcloud-sqlbkp.bak", dest + "/nextcloud-sqlbkp.bak")
-        sftp.close()
-        ssh.close()
+    '''
+    try:
+        #getcmd = home_entfernter_pc + '/nextcloud-sqlbkp.bak', home_dieser_pc + '/nextcloud-sqlbkp.bak'
+        getcmd = home_entfernter_pc + '/nextcloud-sqlbkp.bak', home_dieser_pc
+        print(getcmd)
+        sftp.get(getcmd)
+        getcmd = home_entfernter_pc + '/nextcloud-dirbkp.tar.gz', home_dieser_pc + '/nextcloud-dirbkp.tar.gz'
+        print(getcmd)
+        sftp.get(getcmd)
+        sftp.get("/var/ncdata.tar.gz",  home_dieser_pc + "/ncdata.tar.gz")
     except:
         print("Nicht alle Files vorhanden")
+    '''
+    sftp.close()
+    ssh.close()
+
 
 def SendCmdFile():
     global hostname
@@ -161,7 +206,10 @@ def SendCmdFile():
     ssh.set_missing_host_key_policy(paramiko.WarningPolicy)
     ssh.connect(hostname, username=username, password=password)
     sftp = ssh.open_sftp()
-    sftp.put(home_dieser_pc + '/server_cmd.sh', home_entfernter_pc + '/server_cmd.sh')
+    try:
+        sftp.put(home_dieser_pc + '/server_cmd.sh', home_entfernter_pc + '/server_cmd.sh')
+    except:
+        print("Fehler beim übertragen von server_cmd.sh")
     sftp.close()
     ssh.close()
 
@@ -190,7 +238,9 @@ def write_server_cmd():
     file.write("tar cfvz nextcloud-dirbkp.tar.gz nextcloud-dirbkp\n")
     file.write("mysqldump --lock-tables -h localhost -u nextcloud -pnextcloud nextcloud > nextcloud-sqlbkp.bak\n")
     file.write("cd /var\n")
-    #file.write("tar cfvz ncdata.tar.gz nc_data\n")
+    file.write("tar cfvz ncdata.tar.gz nc_data\n")
+    file.write("cd /var\n")
+    file.write("tar " + home_entfernter_pc + "/cfvz ncdata.tar.gz nc_data\n")
     file.write("cd /var/www/nextcloud\n")
     file.write("sudo -u www-data php occ maintenance:mode --off\n")
     file.write("rm /home/thh/nc" + server_cmd + "\n")
@@ -308,6 +358,7 @@ class App:
 
     self.b1 = Button(root, text="Save and QUIT", fg="red", command=frame.quit)
     self.b2 = Button(root, text="Save and Run", fg="green", command=self.StoreParamsInFile)
+    #self.b2 = Button(root, text="Save and Run", fg="green", command=self.GetResultFiles)
 
     #self.e1.pack(side=BOTTOM)
     #self.e2.pack(side=LEFT)
